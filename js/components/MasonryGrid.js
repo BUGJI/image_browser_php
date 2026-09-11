@@ -33,8 +33,6 @@ export class MasonryGrid {
 
   bindEvents() {
     appStore.subscribe('filteredImages', (imgs) => {
-      console.log('[MasonryGrid] filteredImages changed:', imgs?.length || 0);
-      this.clear();
       this.actualHeights.clear();
       this.reload(imgs);
     });
@@ -43,9 +41,7 @@ export class MasonryGrid {
 
     this.$scroll.addEventListener('scroll', () => this.scheduleRender());
 
-    window.addEventListener('resize', debounce(() => {
-      if (appStore.get('filteredImages').length) this.recalc();
-    }, 200));
+    window.addEventListener('resize', debounce(() => this.recalc(), 200));
   }
 
   /** 加载文件夹对应的 README */
@@ -65,14 +61,7 @@ export class MasonryGrid {
   }
 
   reload(images) {
-    if (!images.length) {
-      this.$viewport.innerHTML = `<div class="empty-state">${icon('inbox', 28)}<div>空文件夹</div></div>`;
-      this.$count.textContent = '0 张';
-      this.$spacer.style.height = '0px';
-      return;
-    }
     this.$count.textContent = `${images.length} 张`;
-    this.$viewport.innerHTML = '';
     this.recalc();
   }
 
@@ -83,7 +72,7 @@ export class MasonryGrid {
   setSearchMode(on) {
     if (this.searchMode === on) return;
     this.searchMode = on;
-    if (appStore.get('filteredImages').length) this.recalc();
+    this.recalc();
   }
 
   /** 显示/隐藏加载状态 */
@@ -95,13 +84,17 @@ export class MasonryGrid {
 
   recalc() {
     const images = appStore.get('filteredImages');
-    if (!images.length) { 
-      this.layout = []; 
+    const hasReadme = !!this.readmeEl && !this.searchMode;
+
+    // 既无图片也无 README：显示空状态
+    if (!images.length && !hasReadme) {
+      this.layout = [];
       this.pathToItem.clear();
-      appStore.set('layout', []); 
-      this.$spacer.style.height = '0px'; 
-      this.clear(); 
-      return; 
+      this.rendered.clear();
+      appStore.set('layout', []);
+      this.$spacer.style.height = '0px';
+      this.$viewport.innerHTML = `<div class="empty-state">${icon('inbox', 28)}<div>空文件夹</div></div>`;
+      return;
     }
 
     const cols = getColumns(this.$scroll.clientWidth, appStore.get('zoom'));
@@ -113,10 +106,10 @@ export class MasonryGrid {
     const colHeights = new Array(cols).fill(contentTopPadding);
     const newLayout = [];
 
-    // 如果有 README，先放第一个位置（跨列），固定高度 200px；搜索模式下不显示
-    let startIndex = 0;
-    const README_HEIGHT = 200;
-    if (this.readmeEl && !this.searchMode) {
+    // README 固定放在首位（跨列），固定高度 200px；搜索模式下不显示。
+    // 即使没有任何图片也照常布局，保证「仅 README」的文件夹也能正确显示。
+    if (hasReadme) {
+      const README_HEIGHT = 200;
       newLayout.push({
         index: -1,
         col: 0,
@@ -127,12 +120,10 @@ export class MasonryGrid {
         img: null,
         isReadme: true
       });
-      // README 占据所有列
       for (let c = 0; c < cols; c++) colHeights[c] = README_HEIGHT + gap + contentTopPadding;
-      startIndex = 0;
     }
 
-    for (let i = startIndex; i < images.length; i++) {
+    for (let i = 0; i < images.length; i++) {
       const img = images[i];
       const cardH = this.actualHeights.get(img.path) ||
         (img.width && img.height ? cardW / (img.width / img.height) : cardW * 0.75);
@@ -166,13 +157,10 @@ export class MasonryGrid {
   }
 
   clear() {
+    // 统一交给 renderVisible 负责定位/插入（含 README），避免重复挂载导致错位或消失
     this.rendered.forEach(el => el.remove());
     this.rendered.clear();
     this.$viewport.innerHTML = '';
-    // 重新插入 README（如果有）
-    if (this.readmeEl) {
-      this.$viewport.appendChild(this.readmeEl);
-    }
   }
 
   renderVisible() {

@@ -336,6 +336,3 @@ export class App {
     this.loadFolderTree(true); // 同时强制刷新目录树
   }
 }
-
-/** 启动 */
-document.addEventListener('DOMContentLoaded', () => new App());
