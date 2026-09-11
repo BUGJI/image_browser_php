@@ -1,12 +1,12 @@
-> 也提供桌面端软件：[image_browser](https://github.com/BUGJI/image_browser)
+> 此项目同样有同类型桌面端软件，针对本地体验进行全面优化：[image_browser](https://github.com/BUGJI/image_browser)
 
 # PHP 快速图片浏览器
 
-一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。瀑布流/正方形虚拟滚动、递归目录树、全局搜索、灯箱预览、本地原图 / WebDAV 双存储模式,开箱即用。
+一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。
 
-> [!IMPORTANT]
-> **使用前必读:先在 `webp_cache/` 下新建一个独立文件夹,再把图片或 `README.md` 放进去。**
-> 直接丢在 `webp_cache/` 根目录下的图片和 README **不会显示** —— 左侧目录树只列出文件夹,根目录文件不计入任何可浏览的分类。
+瀑布流/正方形虚拟滚动、递归目录树、全局搜索、灯箱预览
+
+<img width="750" height="400" alt="image" src="https://github.com/user-attachments/assets/ac71437f-a161-4585-b2a2-7ddac47d6da6" />
 
 ---
 
