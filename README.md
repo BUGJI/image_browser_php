@@ -1,12 +1,14 @@
-> 也提供桌面端软件：[image_browser](https://github.com/BUGJI/image_browser)
+> 此项目同样有同类型桌面端软件，针对本地体验进行全面优化：[image_browser](https://github.com/BUGJI/image_browser)
+
+> QQ交流群 [1064353699](https://qm.qq.com/q/bI7nX30tFK)
 
 # PHP 快速图片浏览器
 
-一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。瀑布流/正方形虚拟滚动、递归目录树、全局搜索、灯箱预览、本地原图 / WebDAV 双存储模式,开箱即用。
+一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。
 
-> [!IMPORTANT]
-> **使用前必读:先在 `webp_cache/` 下新建一个独立文件夹,再把图片或 `README.md` 放进去。**
-> 直接丢在 `webp_cache/` 根目录下的图片和 README **不会显示** —— 左侧目录树只列出文件夹,根目录文件不计入任何可浏览的分类。
+瀑布流/正方形虚拟滚动、递归目录树、全局搜索、灯箱预览
+
+<img width="750" height="400" alt="image" src="https://github.com/user-attachments/assets/ac71437f-a161-4585-b2a2-7ddac47d6da6" />
 
 ---
 
@@ -37,7 +39,7 @@
 - **键盘导航** ←/→ 切换(自动跳过 README 等非图片项),双击重置缩放
 - **鼠标滚轮缩放** —— 以鼠标为中心缩放 (0.25x ~ 10x)
 - **拖拽平移** —— 缩放后按住鼠标拖动查看大图
-- **原图加载** —— 点击「原图模式」加载高清原图(webdav 模式经 `api.php` 代理远程,local 模式直接读本地)
+- **原图加载** —— 点击「原图模式」加载高清原图(本地原图模式直接读取本地文件;WebDAV 同步模式由服务器代理远程原图)
 - **图片信息** —— 显示文件名、尺寸、格式、大小、修改时间
 
 ### 🎨 交互体验
@@ -48,24 +50,35 @@
 
 ---
 
-## 💾 存储模式
+## 💾 两种存储模式
 
-由 `.env` 的 `STORAGE_MODE` 控制,两种模式共用同一个 `webp_cache/` 目录:
+程序把**所有图片都放在网站内的 `webp_cache/` 目录**里。图片从哪来,由 `.env` 中的 `STORAGE_MODE` 决定,二选一:
 
-| 模式 | 值 | 行为 |
-|------|----|------|
-| **WebDAV 模式**(默认) | `webdav` | 从远程 WebDAV 拉取原图 → 压缩进 `webp_cache`,`api.php?action=original` 代理远程原图 |
-| **本地原图模式** | `local` | 网站直接展示 `webp_cache/` 内的原图,不远程拉取、不启用同步;`api.php?action=original` 直接读本地文件 |
+| 模式 | 值 | 图片来自哪里 | 适合场景 |
+|------|----|--------------|----------|
+| **本地原图模式** | `local` | 你手动放进 `webp_cache/` 的原图 | 图片已经在本机 / 服务器上,不想连接任何远程服务 |
+| **WebDAV 同步模式** | `webdav` | 从远程 WebDAV(NAS / 网盘等)拉取并压缩进 `webp_cache/` | 图片存放在远程 WebDAV 上 |
 
 ```bash
 # .env
-STORAGE_MODE=webdav   # 或 local
+STORAGE_MODE=local    # 本地原图模式
+# 或者
+STORAGE_MODE=webdav   # WebDAV 同步模式
 ```
 
-- **local**:先在 `webp_cache/` 下**新建一个子文件夹**,再把原图(png / jpg / jpeg / webp / gif)和可选的 `README.md` 放进去;改完在 admin 面板点「强制重建目录树」生效。admin 面板会隐藏 WebDAV 同步相关界面。
-- **webdav**:保持原有行为,使用下方同步任务把远程素材压缩到 `webp_cache`。
+**本地原图模式(local)—— 最简单的上手方式**
 
-> ⚠️ 无论哪种模式,**图片和 README 都必须位于 `webp_cache/` 的子文件夹中**;放在根目录的文件不会被目录树列出、也不会显示。需要多个分类时,建立多个子文件夹即可(支持嵌套)。
+1. 在 `webp_cache/` 下**新建一个子文件夹**(例如 `webp_cache/我的素材/`)
+2. 把图片(png / jpg / jpeg / webp / gif)和可选的 `README.md` 放进去
+3. 打开网站即可浏览;若没有更新,到 `admin.php` 点「🔄 强制重建目录树」
+
+**WebDAV 同步模式(webdav)**
+
+1. 在 `.env` 中填写远程地址与账号:`WEBDAV_BASE_URL`、`WEBDAV_USERNAME`、`WEBDAV_PASSWORD`
+2. 打开 `admin.php`,在「🔄 WebDAV 同步任务」卡片点「▶ 增量同步」,等待完成
+3. 远程图片会被压缩后写入 `webp_cache/`,并自动显示在网站上
+
+> ⚠️ 无论选哪种模式,图片和 README 都必须放在 `webp_cache/` 的**子文件夹**里;直接放在根目录的文件不会被目录树列出、也不会显示。需要分类就建多个子文件夹(支持多层嵌套)。
 
 ---
 
@@ -73,17 +86,17 @@ STORAGE_MODE=webdav   # 或 local
 
 > 仅在 `STORAGE_MODE=webdav` 时可用。
 
-将远程 WebDAV 原图同步压缩到本地 `webp_cache`(命名 `xxx.原扩展.webp`,与浏览器读取一致)。
+把远程 WebDAV 上的图片下载到服务器并压缩为 webp,存入 `webp_cache/`。
 
 ### 同步配置(admin 面板)
-白名单扩展名、黑名单、压缩质量、最大宽度均在 `admin.php` 的「WebDAV 同步任务」卡片中设置,保存到 `.sync_config.json`(优先级高于内置默认,无需改 `.env`)。
-- **黑名单**:按目录/文件名匹配(任意层级同名,如 `.seekMeta`、`Thumbs.db`),逗号分隔。
+白名单扩展名、黑名单、压缩质量、最大宽度都在 `admin.php` 的「WebDAV 同步任务」卡片里设置,点「💾 保存配置」后立即生效(无需手动改 `.env`)。
+- **黑名单**:按目录 / 文件名匹配(任意层级同名,如 `.seekMeta`、`Thumbs.db`),逗号分隔。
 
 ### 增量 / 全量
 | 模式 | 行为 | 使用场景 |
 |------|------|----------|
-| **增量** | 只拉取新增/变化文件(manifest 比对 mtime) | 日常增量更新 |
-| **全量** | 忽略 manifest,重新下载压缩全部 | 首次部署 / 想重压全部 |
+| **增量** | 只下载新增或变化的文件 | 日常更新 |
+| **全量** | 忽略已有记录,重新下载并压缩全部文件 | 第一次同步 / 想全部重新压缩 |
 
 > 受服务器禁用后台进程限制,Web 面板同步采用前端分批轮询,**转换期间请勿关闭页面**;中途关闭可重开页面点「增量同步」断点续传。
 
@@ -147,17 +160,20 @@ js/
 - **PHP 7.4+**(需开启 `curl`、`gd` 扩展;WebDAV 同步需 `simplexml`)
 - 现代浏览器(支持 ES Modules、IntersectionObserver、AbortController)
 
-### 部署
+### 部署(以「本地原图模式」为例)
 ```bash
-# 1. 复制环境配置并填写
+# 1. 复制配置模板
 cp .env.example .env
-# 2. 编辑 .env:填入 WebDAV 凭据、ADMIN_TOKEN(强随机口令)
-# 3. 将项目放入 PHP 服务器目录(如 Apache/Nginx/PHP 内置服务器)
-# 4. 在 webp_cache 下新建子文件夹,并放入图片 / README(结构见下;根目录文件不显示)
-# 5. 启动 PHP 服务
+# 2. 编辑 .env:
+#    - 设置 ADMIN_TOKEN(后台管理口令,请改成随机字符串)
+#    - 设置 STORAGE_MODE=local(本地原图模式)
+#    - 若用 WebDAV 同步模式,再填 WEBDAV_BASE_URL / WEBDAV_USERNAME / WEBDAV_PASSWORD
+# 3. 把项目放到 PHP 服务器目录(Apache / Nginx / PHP 内置服务器均可)
+# 4. 在 webp_cache/ 下新建子文件夹,放入图片 / README(根目录文件不会显示,结构见下)
+# 5. 启动服务
 php -S localhost:8080 -t .
 # 6. 浏览器打开 http://localhost:8080
-# 7.(可选)管理面板 http://localhost:8080/admin.php(需 .env 中 ADMIN_TOKEN)
+# 7. 管理面板 http://localhost:8080/admin.php(登录口令即 .env 中的 ADMIN_TOKEN)
 ```
 
 ### 目录结构要求
@@ -215,7 +231,7 @@ export const CONFIG = {
 
 | 变量 | 说明 |
 |------|------|
-| `STORAGE_MODE` | 存储模式:`webdav`(默认,远程拉取同步) / `local`(网站本地原图,直接展示) |
+| `STORAGE_MODE` | 存储模式:`local`(本地原图,直接展示) / `webdav`(从远程 WebDAV 同步) |
 | `WEBDAV_BASE_URL` | 原图代理的远程 WebDAV 根目录(含空格/中文会自动编码,仅 webdav 模式) |
 | `WEBDAV_USERNAME` / `WEBDAV_PASSWORD` | WebDAV 凭据 |
 | `ADMIN_TOKEN` | Admin 面板管理口令 |
