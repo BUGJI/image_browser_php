@@ -28,6 +28,11 @@ $treeCacheFile = __DIR__ . '/.folder_tree_cache.json';
 $metaCacheFile = __DIR__ . '/.images_meta_cache.json';
 $nameIndexFile = __DIR__ . '/.name_index_cache.json';
 
+// 图片根目录缺失时自动创建（否则前端加载目录会一直卡在 loading）
+if (!is_dir($cacheDir)) {
+    @mkdir($cacheDir, 0755, true);
+}
+
 // 缓存过期时间：30 天（前端「清除缓存」/admin 可强制重建）
 $treeCacheTtl = 30 * 24 * 3600;
 $metaCacheTtl = 30 * 24 * 3600;

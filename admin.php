@@ -18,6 +18,11 @@ $env = loadEnv();
 $adminToken = $env['ADMIN_TOKEN'] ?? '';
 $cacheDir = __DIR__ . '/webp_cache';
 
+// 图片根目录缺失时自动创建
+if (!is_dir($cacheDir)) {
+    @mkdir($cacheDir, 0755, true);
+}
+
 // 存储模式：local=网站本地原图；webdav=远程拉取同步（默认）
 $storageMode = strtolower(trim((string)($env['STORAGE_MODE'] ?? 'webdav')));
 $isWebdav = ($storageMode !== 'local');

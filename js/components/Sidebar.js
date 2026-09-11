@@ -6,6 +6,7 @@ import { appStore } from '../core/Store.js';
 import { Storage } from '../core/Storage.js';
 import { STORAGE_KEYS, CACHE_TTL } from '../core/Config.js';
 import { formatSize } from '../utils/helpers.js';
+import { icon } from '../utils/icons.js';
 
 export class Sidebar {
   constructor() {
@@ -24,7 +25,7 @@ export class Sidebar {
 /** 渲染目录树 */
   render(tree) {
     if (!tree?.length) {
-      this.$tree.innerHTML = '<div class="status-msg">📭 暂无文件夹</div>';
+      this.$tree.innerHTML = `<div class="empty-state">${icon('inbox', 28)}<div>暂无文件夹</div></div>`;
       return;
     }
     this.$tree.innerHTML = '';
@@ -49,9 +50,9 @@ export class Sidebar {
 
     if (hasChildren) {
       const btn = document.createElement('span');
-      btn.className = 'folder-toggle-btn';
+      btn.className = 'folder-toggle-btn' + (isCollapsed ? '' : ' expanded');
       btn.dataset.path = path;
-      btn.textContent = isCollapsed ? '▶' : '▼';
+      btn.innerHTML = icon('chevronRight', 14);
       btn.onclick = e => { e.stopPropagation(); this.toggle(path); };
       item.appendChild(btn);
     } else {
@@ -61,10 +62,10 @@ export class Sidebar {
       item.appendChild(sp);
     }
 
-    const icon = document.createElement('span');
-    icon.className = 'folder-icon';
-    icon.textContent = hasChildren ? '📁' : '📂';
-    item.appendChild(icon);
+    const iconEl = document.createElement('span');
+    iconEl.className = 'folder-icon';
+    iconEl.innerHTML = icon(hasChildren && !isCollapsed ? 'folderOpen' : 'folder', 16);
+    item.appendChild(iconEl);
 
     const name = document.createElement('span');
     name.className = 'folder-name';
@@ -110,7 +111,11 @@ export class Sidebar {
       const shouldCollapse = set.has(p);
       el.classList.toggle('collapsed', shouldCollapse);
       const btn = this.$tree.querySelector(`.folder-toggle-btn[data-path="${p}"]`);
-      if (btn) btn.textContent = shouldCollapse ? '▶' : '▼';
+      if (btn) {
+        btn.classList.toggle('expanded', !shouldCollapse);
+        const iconEl = btn.closest('.folder-item')?.querySelector('.folder-icon');
+        if (iconEl) iconEl.innerHTML = icon(shouldCollapse ? 'folder' : 'folderOpen', 16);
+      }
     });
   }
 

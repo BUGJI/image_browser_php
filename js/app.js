@@ -11,6 +11,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { MasonryGrid } from './components/MasonryGrid.js';
 import { Lightbox } from './components/Lightbox.js';
 import { debounce, formatSize, getColumns, getOriginalName, formatDateTime } from './utils/helpers.js';
+import { icon, hydrateIcons } from './utils/icons.js';
 
 export class App {
   constructor() {
@@ -21,13 +22,15 @@ export class App {
     this.init();
   }
 
-async init() {
-    // 0. 清理过期缓存（防止配额超限），不做 LRU 淘汰以免误删折叠状态
+  async init() {
+    // 0. 填充静态图标 + 清理过期缓存（防止配额超限），不做 LRU 淘汰以免误删折叠状态
+    hydrateIcons();
     Storage.cleanExpired();
 
     // 1. 恢复主题
     const theme = Storage.get(STORAGE_KEYS.THEME) || 'dark';
     document.body.classList.toggle('light-theme', theme === 'light');
+    document.getElementById('themeToggle').innerHTML = icon(theme === 'light' ? 'sun' : 'moon', 16);
 
     // 2. 恢复折叠状态（区分「从未保存」与「保存为空」，首次使用默认全折叠）
     const rawCollapsed = Storage.get(STORAGE_KEYS.COLLAPSED_FOLDERS);
@@ -61,7 +64,10 @@ async init() {
 
     // 搜索
     const $search = document.getElementById('imageSearch');
+    const $clear = document.getElementById('searchClear');
+    const syncClear = () => { $clear.hidden = !$search.value; };
     $search.addEventListener('input', debounce(() => {
+      syncClear();
       if (!$search.value.trim()) {
         // 清空搜索框：取消未完成的搜索请求，回到当前文件夹
         this.cancelSearch();
@@ -70,6 +76,13 @@ async init() {
         this.search($search.value);
       }
     }, 300));
+    $clear.addEventListener('click', () => {
+      $search.value = '';
+      syncClear();
+      this.cancelSearch();
+      this.selectFolder(appStore.get('currentFolderPath'), appStore.get('currentFolderName'));
+      $search.focus();
+    });
     window.debouncedSearch = () => this.search($search.value);
 
     // 缩放
@@ -150,7 +163,7 @@ async init() {
     const $el = document.getElementById('cacheUpdatedAt');
     if (!$el) return;
     const ts = Storage.get(STORAGE_KEYS.CACHE_UPDATED_AT);
-    $el.textContent = '📦 上次更新: ' + formatDateTime(ts);
+    $el.innerHTML = icon('package', 12) + ' 上次更新: ' + formatDateTime(ts);
   }
 
   /** 选择文件夹 */
@@ -164,6 +177,8 @@ async init() {
     appStore.setMultiple({ currentFolderPath: path, currentFolderName: name });
     document.getElementById('currentPath').textContent = name || path;
     document.getElementById('imageSearch').value = '';
+    const $clear = document.getElementById('searchClear');
+    if ($clear) $clear.hidden = true;
     this.sidebar?.updateActive(path);
     if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
 
@@ -286,8 +301,8 @@ async init() {
   toggleTheme() {
     const isLight = document.body.classList.toggle('light-theme');
     Storage.set(STORAGE_KEYS.THEME, isLight ? 'light' : 'dark');
-    document.getElementById('themeToggle').textContent = isLight ? '☀️' : '🌓';
-    this.showToast(isLight ? '☀️ 亮色主题' : '🌙 暗色主题', 'info');
+    document.getElementById('themeToggle').innerHTML = icon(isLight ? 'sun' : 'moon', 16);
+    this.showToast(isLight ? '亮色主题' : '暗色主题', 'info');
   }
 
   /** 刷新当前文件夹 */
@@ -308,7 +323,9 @@ async init() {
   /** Toast 提示 */
   showToast(msg, type = 'success') {
     const $toast = document.getElementById('toast');
-    $toast.textContent = msg;
+    const iconName = type === 'error' ? 'alert' : type === 'info' ? 'info' : 'check';
+    $toast.innerHTML = `<span class="toast-icon">${icon(iconName, 16)}</span><span class="toast-text"></span>`;
+    $toast.querySelector('.toast-text').textContent = msg;
     $toast.className = `toast toast-${type} show`;
     setTimeout(() => $toast.classList.remove('show'), 2500);
   }

@@ -5,6 +5,7 @@ import { eventBus, EVENTS } from '../core/EventBus.js';
 import { appStore } from '../core/Store.js';
 import { api } from '../services/ApiService.js';
 import { debounce, getColumns, formatSize, getOriginalName, escapeHtml } from '../utils/helpers.js';
+import { icon } from '../utils/icons.js';
 import { ReadmeDisplay } from './ReadmeDisplay.js';
 
 export class MasonryGrid {
@@ -65,7 +66,7 @@ export class MasonryGrid {
 
   reload(images) {
     if (!images.length) {
-      this.$viewport.innerHTML = '<div class="status-msg">📭 空文件夹</div>';
+      this.$viewport.innerHTML = `<div class="empty-state">${icon('inbox', 28)}<div>空文件夹</div></div>`;
       this.$count.textContent = '0 张';
       this.$spacer.style.height = '0px';
       return;

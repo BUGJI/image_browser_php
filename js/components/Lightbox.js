@@ -6,6 +6,7 @@ import { appStore } from '../core/Store.js';
 import { api } from '../services/ApiService.js';
 import { imageService } from '../services/ImageService.js';
 import { escapeHtml, formatSize, getOriginalName } from '../utils/helpers.js';
+import { icon } from '../utils/icons.js';
 
 export class Lightbox {
   constructor() {
@@ -64,7 +65,7 @@ export class Lightbox {
 
     const img = item.img;
     this.$loading.style.display = 'flex';
-    this.$badge.textContent = '📷 加载原图中...';
+    this.$badge.innerHTML = icon('image', 13) + ' 加载原图中...';
     this.$img.src = api.getThumbnailUrl(img.path);
     this.$info.textContent = `${img.name} ${img.format || ''} ${img.sizeFormatted || ''} | 加载原图...`;
 
@@ -74,12 +75,12 @@ export class Lightbox {
       if (original && original.src) {
         this.$img.src = original.src;
         this.$info.textContent = `${img.originalName || img.name} ${img.format || ''} ${img.sizeFormatted || ''} | ✓ 原图`;
-        this.$badge.textContent = '✨ 原图模式';
+        this.$badge.innerHTML = icon('maximize', 13) + ' 原图模式';
       } else throw new Error('原图加载失败');
     } catch {
       if (seq !== this.openSeq) return;
       this.$info.textContent = `${img.name} | 原图失败，显示缩略图`;
-      this.$badge.textContent = '⚠️ 缩略图模式';
+      this.$badge.innerHTML = icon('image', 13) + ' 缩略图模式';
     } finally {
       if (seq === this.openSeq) this.$loading.style.display = 'none';
     }
