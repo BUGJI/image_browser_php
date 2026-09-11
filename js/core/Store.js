@@ -51,7 +51,7 @@ export const appStore = new Store({
   theme: 'dark',
   sidebarOpen: window.innerWidth <= 768,
   viewMode: 'masonry',
-  zoom: 1,
+  zoom: 2,
   // Data
   folderTree: [],
   collapsedFolders: new Set(),

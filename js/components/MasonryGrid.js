@@ -145,13 +145,21 @@ export class MasonryGrid {
     }
 
     const isGrid = this.viewMode === 'grid';
+    const MAX_ASPECT = 5; // 瀑布流下单张卡片最高不超过 宽:高 = 1:5
 
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      // 正方形模式：每个格子固定为宽高相等（图片用 object-fit: cover 等比裁剪填满）
-      const cardH = isGrid ? cardW :
-        (this.actualHeights.get(img.path) ||
-          (img.width && img.height ? cardW / (img.width / img.height) : cardW * 0.75));
+      let cardH, clamped = false;
+      if (isGrid) {
+        // 正方形模式：每个格子固定为宽高相等（图片用 object-fit: cover 等比裁剪填满）
+        cardH = cardW;
+      } else {
+        cardH = this.actualHeights.get(img.path) ||
+          (img.width && img.height ? cardW / (img.width / img.height) : cardW * 0.75);
+        // 超高图限制：超过 1:5 则限制高度，图片等比缩小（contain）完整显示
+        const maxH = cardW * MAX_ASPECT;
+        if (cardH > maxH) { cardH = maxH; clamped = true; }
+      }
 
       let minCol = 0;
       for (let c = 1; c < cols; c++) if (colHeights[c] < colHeights[minCol]) minCol = c;
@@ -164,6 +172,7 @@ export class MasonryGrid {
         left: this.#vpPadding + minCol * (cardW + gap),
         w: cardW,
         h: cardH,
+        clamped,
         img
       });
 
@@ -233,6 +242,7 @@ export class MasonryGrid {
     el.style.top = item.top + 'px';
     el.style.width = item.w + 'px';
     el.style.height = item.h + 'px';
+    if (!item.isReadme) el.classList.toggle('tall', !!item.clamped);
   }
 
   createCard(item) {
@@ -270,6 +280,7 @@ export class MasonryGrid {
       if (nw && nh && this.viewMode !== 'grid') {
         // 用当前布局宽度计算，兼容加载完成前已缩放的情况（正方形模式高度固定，无需修正）
         const cur = this.pathToItem.get(img.path);
+        if (cur && cur.clamped) return; // 已按 1:5 限制高度，不再用自然高度修正
         const curW = cur ? cur.w : item.w;
         const curH = cur ? cur.h : item.h;
         const dh = (nh / nw) * curW;

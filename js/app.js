@@ -48,6 +48,10 @@ export class App {
     this.grid.setViewMode(viewMode);
     this.updateViewButton(viewMode);
 
+    // 3.2 缩放默认值以滑块初始值为准（默认 2）
+    const zoomDefault = parseFloat(document.getElementById('zoomSlider').value);
+    if (!Number.isNaN(zoomDefault)) appStore.set('zoom', zoomDefault);
+
     // 4. 绑定全局事件
     this.bindGlobalEvents();
 

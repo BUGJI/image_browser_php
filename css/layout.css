@@ -204,6 +204,9 @@
 /* 正方形模式：格子固定为正方形，图片等比缩放裁剪填满 */
 .masonry-viewport.view-grid .pic-card img { height: 100%; object-fit: cover; }
 
+/* 瀑布流超高图（高 > 宽×5）：限制卡片高度，图片等比缩小后完整显示 */
+.pic-card.tall img { height: 100%; object-fit: contain; }
+
 .pic-skeleton {
   position: absolute; inset: 0;
   background: linear-gradient(100deg, var(--bg-tertiary) 30%, var(--hover-bg) 50%, var(--bg-tertiary) 70%);
