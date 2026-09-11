@@ -1,5 +1,7 @@
 > 此项目同样有同类型桌面端软件，针对本地体验进行全面优化：[image_browser](https://github.com/BUGJI/image_browser)
 
+> QQ交流群 [1064353699](https://qm.qq.com/q/bI7nX30tFK)
+
 # PHP 快速图片浏览器
 
 一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。
