@@ -20,8 +20,8 @@
  *     sync_webdav.php?action=cancel   # 取消
  *     sync_webdav.php?action=config   # GET 获取配置 / POST 保存配置
  *
- * 配置优先级：.sync_config.json (admin 面板保存) > .env > 内置默认
- *   .env: SYNC_WHITELIST / SYNC_BLACKLIST / SYNC_QUALITY / SYNC_MAX_WIDTH / SYNC_BATCH_SIZE
+ * 配置优先级：.sync_config.json (admin 面板保存) > 内置默认
+ *   .env 仅保留 SYNC_BATCH_SIZE（每批文件数）
  */
 
 require_once __DIR__ . '/env.php';
@@ -63,7 +63,7 @@ $stateFile  = __DIR__ . '/.sync_state.json';
 $manifestFile = __DIR__ . '/.sync_manifest.json';
 $configFile = __DIR__ . '/.sync_config.json';
 
-// ---------- 配置（优先级: .sync_config.json > .env > 默认） ----------
+// ---------- 配置（优先级: .sync_config.json > 默认） ----------
 $DEFAULTS = [
     'whitelist' => 'png,jpg,jpeg,webp,gif,md,txt',
     'blacklist' => '.seekMeta,.seekTrash,@eaDir,#recycle,.thumbnails,Thumbs.db,.DS_Store',
@@ -75,16 +75,9 @@ $DEFAULTS = [
 function loadConfig() {
     global $env, $configFile, $DEFAULTS;
     $cfg = $DEFAULTS;
-    // 1. .env 覆盖默认
-    $envMap = [
-        'whitelist' => 'SYNC_WHITELIST',
-        'blacklist' => 'SYNC_BLACKLIST',
-        'quality'   => 'SYNC_QUALITY',
-        'max_width' => 'SYNC_MAX_WIDTH',
-        'batch_size'=> 'SYNC_BATCH_SIZE',
-    ];
-    foreach ($envMap as $k => $ek) {
-        if (isset($env[$ek]) && $env[$ek] !== '' && $env[$ek] !== null) $cfg[$k] = $env[$ek];
+    // 1. .env 仅覆盖 batch_size（少量留给 CLI 的调优项）
+    if (isset($env['SYNC_BATCH_SIZE']) && $env['SYNC_BATCH_SIZE'] !== '' && $env['SYNC_BATCH_SIZE'] !== null) {
+        $cfg['batch_size'] = $env['SYNC_BATCH_SIZE'];
     }
     // 2. .sync_config.json 覆盖一切（admin 面板保存）
     if (file_exists($configFile)) {
@@ -93,13 +86,8 @@ function loadConfig() {
             foreach ($cfg as $k => $v) {
                 if (isset($j[$k]) && $j[$k] !== '') $cfg[$k] = (string)$j[$k];
             }
-            // blacklist_dirs: 树勾选产生的「路径黑名单」（数组），仅在 config json 里保存
-            if (isset($j['blacklist_dirs']) && is_array($j['blacklist_dirs'])) {
-                $cfg['blacklist_dirs'] = $j['blacklist_dirs'];
-            }
         }
     }
-    if (!isset($cfg['blacklist_dirs'])) $cfg['blacklist_dirs'] = [];
     return $cfg;
 }
 
@@ -112,23 +100,12 @@ function saveConfigToFile($cfg) {
         'max_width' => (string)(int)$cfg['max_width'],
         'batch_size'=> (string)(int)$cfg['batch_size'],
     ];
-    // 路径黑名单（树勾选）独立保存为数组
-    $dirs = $cfg['blacklist_dirs'] ?? [];
-    if (is_string($dirs)) $dirs = json_decode($dirs, true);
-    if (!is_array($dirs)) $dirs = [];
-    $cleanDirs = [];
-    foreach ($dirs as $d) {
-        $d = trim((string)$d);
-        if ($d !== '') $cleanDirs[] = $d;
-    }
-    $clean['blacklist_dirs'] = $cleanDirs;
     return @file_put_contents($configFile, json_encode($clean, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) !== false;
 }
 
 $cfg = loadConfig();
 $WHITELIST = array_values(array_filter(array_map('strtolower', array_map('trim', explode(',', $cfg['whitelist'])))));
 $BLACKLIST = array_values(array_filter(array_map('trim', explode(',', $cfg['blacklist']))));
-$BLACKLIST_DIRS = $cfg['blacklist_dirs'];
 $QUALITY   = max(1, min(100, (int)$cfg['quality']));
 $MAX_WIDTH = max(16, (int)$cfg['max_width']);
 $BATCH_SIZE= max(1, (int)$cfg['batch_size']);
@@ -136,7 +113,7 @@ $TIME_BUDGET = 40;   // 单批最长处理秒数（Web 模式 300s 内留足余�
 $SCAN_DIRS_PER_BATCH = 20; // 单批最多扫描的远程目录数
 $FULL_MODE = false;  // true=全量（忽略 manifest 增量判断）
 
-// ---------- URL 编码（与 test_webdav.php / api.php 一致） ----------
+// ---------- URL 编码（与 api.php 一致） ----------
 function ensureUrlEncoded($seg) {
     return preg_match('/%(?:[0-9A-Fa-f]{2})/', $seg) ? $seg : rawurlencode($seg);
 }
@@ -355,65 +332,11 @@ if ($action === 'config') {
         foreach (['whitelist', 'blacklist', 'quality', 'max_width', 'batch_size'] as $k) {
             if (isset($_POST[$k])) $new[$k] = trim((string)$_POST[$k]);
         }
-        // 树勾选路径黑名单（JSON 数组字符串或逗号分隔）
-        if (isset($_POST['blacklist_dirs'])) {
-            $raw = trim((string)$_POST['blacklist_dirs']);
-            if ($raw === '') $new['blacklist_dirs'] = [];
-            else {
-                $dec = json_decode($raw, true);
-                $new['blacklist_dirs'] = is_array($dec) ? $dec : array_filter(array_map('trim', explode(',', $raw)));
-            }
-        }
         if (saveConfigToFile($new)) { $cfg = $new; echo json_encode(['ok' => true, 'config' => $new], JSON_UNESCAPED_UNICODE); }
         else echo json_encode(['error' => '配置保存失败（目录不可写？）'], JSON_UNESCAPED_UNICODE);
     } else {
         echo json_encode(['ok' => true, 'config' => loadConfig()], JSON_UNESCAPED_UNICODE);
     }
-    exit;
-}
-
-if ($action === 'tree') {
-    // 返回远程目录树的一层（懒加载：path 为空=根）
-    $treePath = isset($_GET['path']) ? trim((string)$_GET['path']) : '';
-    if ($treePath !== '' && strpos($treePath, '..') !== false) {
-        echo json_encode(['error' => '非法路径'], JSON_UNESCAPED_UNICODE); exit;
-    }
-    if ($remoteBase === '') {
-        echo json_encode(['error' => 'WEBDAV_BASE_URL 未配置'], JSON_UNESCAPED_UNICODE); exit;
-    }
-    $xml = davPropfind(encodeWebDavUrl($remoteBase, $treePath));
-    if ($xml === false) {
-        echo json_encode(['error' => '远程目录不可达'], JSON_UNESCAPED_UNICODE); exit;
-    }
-    $parsed = parsePropfind($xml);
-    if ($parsed === null) {
-        echo json_encode(['error' => '远程响应解析失败'], JSON_UNESCAPED_UNICODE); exit;
-    }
-
-    // 自身路径（PROPFIND depth=1 会返回请求资源自身）
-    $selfDec = hrefToPath(encodeWebDavUrl($remoteBase, $treePath));
-
-    $dirs = [];
-    foreach ($parsed['dirs'] as $subHref) {
-        if (hrefToPath($subHref) === $selfDec) continue; // 跳过自身
-        $name = rawurldecode(basename(rtrim($subHref, '/')));
-        $rel = ($treePath === '') ? $name : $treePath . '/' . $name;
-        $dirs[] = [
-            'name' => $name,
-            'path' => $rel,
-            // 名称黑名单 OR 路径黑名单
-            'blacklisted' => in_array($name, $BLACKLIST, true) || in_array($rel, $BLACKLIST_DIRS, true),
-            'byName' => in_array($name, $BLACKLIST, true),
-            'byPath' => in_array($rel, $BLACKLIST_DIRS, true),
-        ];
-    }
-    // 该层白名单文件数（供显示）
-    $fileCount = 0;
-    foreach ($parsed['files'] as $f) {
-        $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, $WHITELIST, true)) $fileCount++;
-    }
-    echo json_encode(['ok' => true, 'path' => $treePath, 'dirs' => $dirs, 'file_count' => $fileCount], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -482,7 +405,7 @@ if ($action === 'list' || $action === 'cli') {
 
 // ---------- 处理一批（Web run 或 CLI 循环调用） ----------
 function runBatch($state) {
-    global $WHITELIST, $BLACKLIST, $BLACKLIST_DIRS, $QUALITY, $MAX_WIDTH, $BATCH_SIZE, $TIME_BUDGET, $SCAN_DIRS_PER_BATCH;
+    global $WHITELIST, $BLACKLIST, $QUALITY, $MAX_WIDTH, $BATCH_SIZE, $TIME_BUDGET, $SCAN_DIRS_PER_BATCH;
     global $cacheDir, $remoteBase, $manifestFile;
 
     $startTime = microtime(true);
@@ -512,8 +435,8 @@ function runBatch($state) {
             if (hrefToPath($subHref) === $dirSelf) continue; // 跳过自身
             $subName = rawurldecode(basename(rtrim($subHref, '/')));
             $subRel = ($rel === '') ? $subName : $rel . '/' . $subName;
-            // 黑名单：目录名命中（如 .seekMeta）或 完整路径命中（树勾选）
-            if (in_array($subName, $BLACKLIST, true) || in_array($subRel, $BLACKLIST_DIRS, true)) continue;
+            // 黑名单：目录名命中（如 .seekMeta）则跳过
+            if (in_array($subName, $BLACKLIST, true)) continue;
             $state['dir_queue'][] = ['href' => $subHref, 'rel' => $subRel];
         }
         foreach ($parsed['files'] as $f) {

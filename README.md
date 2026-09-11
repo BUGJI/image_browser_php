@@ -75,10 +75,9 @@ STORAGE_MODE=webdav   # 或 local
 
 将远程 WebDAV 原图同步压缩到本地 `webp_cache`(命名 `xxx.原扩展.webp`,与浏览器读取一致)。
 
-### Admin 面板左侧:远程目录树
-- 懒加载展示远程 WebDAV 目录结构(展开某层时才 PROPFIND 该层)
-- 勾选目录 → 加入**路径黑名单**(存 `.sync_config.json` 的 `blacklist_dirs`),同步时跳过该完整路径
-- 与文本框的**名称黑名单**(任意层级同名,如 `.seekMeta`)叠加生效
+### 同步配置(admin 面板)
+白名单扩展名、黑名单、压缩质量、最大宽度均在 `admin.php` 的「WebDAV 同步任务」卡片中设置,保存到 `.sync_config.json`(优先级高于内置默认,无需改 `.env`)。
+- **黑名单**:按目录/文件名匹配(任意层级同名,如 `.seekMeta`、`Thumbs.db`),逗号分隔。
 
 ### 增量 / 全量
 | 模式 | 行为 | 使用场景 |
@@ -101,7 +100,7 @@ STORAGE_MODE=webdav   # 或 local
 | 文件 | 功能 |
 |------|------|
 | `api.php` | **统一接口**:目录树 / 图片列表 / 搜索 / README / 缩略图 / 原图 |
-| `admin.php` | Admin 管理面板(缓存状态 + WebDAV 同步任务 + 远程目录黑名单) |
+| `admin.php` | Admin 管理面板(缓存状态与管理 + WebDAV 同步任务) |
 | `sync_webdav.php` | WebDAV 同步引擎(远程原图 → 本地 webp_cache,增量/全量) |
 | `env.php` | 轻量 .env 加载器 |
 | `.env` / `.env.example` | 环境配置(WebDAV 凭据、ADMIN_TOKEN、STORAGE_MODE),复制 example 为 .env 填写 |
@@ -220,8 +219,7 @@ export const CONFIG = {
 | `WEBDAV_BASE_URL` | 原图代理的远程 WebDAV 根目录(含空格/中文会自动编码,仅 webdav 模式) |
 | `WEBDAV_USERNAME` / `WEBDAV_PASSWORD` | WebDAV 凭据 |
 | `ADMIN_TOKEN` | Admin 面板管理口令 |
-| `SYNC_WHITELIST` / `SYNC_BLACKLIST` | 同步白/黑名单(优先级低于 admin 保存的配置) |
-| `SYNC_QUALITY` / `SYNC_MAX_WIDTH` / `SYNC_BATCH_SIZE` | 压缩质量 / 最大宽度 / 每批数量 |
+| `SYNC_BATCH_SIZE` | 同步每批处理文件数(白名单/黑名单/质量/最大宽度请在 admin 面板设置) |
 
 ---
 

@@ -2,10 +2,9 @@
 /**
  * admin.php - Admin 管理面板
  * 功能：
- *   1. 查看/管理后端缓存（目录树、图片元数据、文件名搜索索引）
- *   2. 强制重建/清空缓存（前端「清除缓存」只清 localStorage，
- *      后端 .images_meta_cache.json 和 .name_index_cache.json 之前没有强制入口）
- *   3. 未来扩展位：WebDAV 同步任务等
+ *   1. 查看后端缓存状态（目录树 / 图片元数据 / 文件名搜索索引）
+ *   2. 强制重建目录树、清空全部缓存
+ *   3. webdav 模式下：WebDAV 同步任务（配置 + 增量/全量）
  *
  * 鉴权：ADMIN_TOKEN 在 .env 中配置（见 .env.example）
  * 访问：http://你的地址/admin.php
@@ -115,21 +114,6 @@ if ($authed && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) 
         $actionMsg = 'CSRF 校验失败，请刷新页面重试';
     } else {
         switch ($act) {
-            case 'clear_tree':
-                @unlink(__DIR__ . '/.folder_tree_cache.json');
-                $actionMsg = '目录树缓存已清空（下次加载目录时自动重建）';
-                $actionOk = true;
-                break;
-            case 'clear_meta':
-                @unlink(__DIR__ . '/.images_meta_cache.json');
-                $actionMsg = '图片元数据缓存已清空（下次访问文件夹时自动重建）';
-                $actionOk = true;
-                break;
-            case 'clear_name':
-                @unlink(__DIR__ . '/.name_index_cache.json');
-                $actionMsg = '文件名搜索索引已清空（下次搜索时自动重建）';
-                $actionOk = true;
-                break;
             case 'clear_all':
                 foreach (array_keys($cacheFiles) as $f) @unlink(__DIR__ . '/' . $f);
                 $actionMsg = '所有缓存已清空';
@@ -160,7 +144,6 @@ function fmtSize($b) {
     if ($b >= 1024) return number_format($b / 1024, 1) . ' KB';
     return $b . ' B';
 }
-function fmtTime($t) { return $t ? date('Y-m-d H:i:s', $t) : '--'; }
 function fmtAge($sec) {
     if ($sec === null) return '--';
     if ($sec < 60) return $sec . ' 秒前';
@@ -181,7 +164,7 @@ function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:24px;min-height:100vh;}
 h1{font-size:22px;margin:0 0 8px;}
 .sub{color:#94a3b8;font-size:14px;margin-bottom:24px;}
-.card{background:#1e293b;border-radius:12px;padding:20px;max-width:860px;margin-bottom:16px;}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;max-width:860px;margin-bottom:16px;}
 .card h2{font-size:16px;margin:0 0 16px;color:#f1f5f9;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
 th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #334155;vertical-align:middle;}
@@ -222,29 +205,18 @@ th{color:#94a3b8;font-weight:600;font-size:12px;}
 .sync-log{background:#0f172a;border-radius:8px;padding:10px 12px;font-size:12px;font-family:monospace;color:#94a3b8;margin-top:10px;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;}
 .sync-msg{display:none;padding:10px 14px;border-radius:8px;font-size:14px;margin-top:10px;}
 .sync-msg.show{display:block;}
-/* ---- 左右布局 + 远程目录树 ---- */
-.layout{display:flex;gap:20px;align-items:flex-start;max-width:1240px;margin:0 auto;}
-.sidebar{flex:0 0 340px;position:sticky;top:20px;}
-.main{flex:1;min-width:0;}
-.sidebar .card{max-width:none;}
-.tree-toolbar{display:flex;gap:8px;margin-bottom:10px;align-items:center;}
-.tree-toolbar .btn{padding:6px 10px;font-size:12px;margin:0;}
-.tree-box{background:#0f172a;border-radius:8px;padding:10px;max-height:520px;overflow-y:auto;font-size:13px;}
-.tree-node{margin-left:14px;border-left:1px solid #1e293b;padding-left:6px;}
-.tree-row{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:6px;cursor:pointer;white-space:nowrap;}
-.tree-row:hover{background:#1e293b;}
-.tree-toggle{width:14px;flex-shrink:0;color:#64748b;font-size:11px;text-align:center;user-select:none;}
-.tree-check{flex-shrink:0;accent-color:#dc2626;cursor:pointer;}
-.tree-icon{flex-shrink:0;}
-.tree-name{overflow:hidden;text-overflow:ellipsis;}
-.tree-badge{flex-shrink:0;font-size:11px;background:#7f1d1d;color:#fca5a5;padding:0 5px;border-radius:999px;display:none;}
-.tree-badge.show{display:inline;}
-.tree-count{flex-shrink:0;font-size:11px;color:#475569;}
-.tree-children{display:none;}
-.tree-node.open>.tree-children{display:block;}
-.tree-loading{color:#475569;font-size:12px;padding:4px 10px;}
-.tree-empty{color:#475569;font-size:12px;padding:4px 10px;}
-.tree-root{font-weight:600;color:#e2e8f0;}
+/* ---- 卡片式仪表盘 ---- */
+.dashboard{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;max-width:1100px;margin:0 auto;align-items:start;}
+.dashboard .card{margin-bottom:0;max-width:none;}
+.dashboard .msg{margin-bottom:0;}
+.col-6{grid-column:span 6;}
+.col-12{grid-column:span 12;}
+.page-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;grid-column:span 12;}
+.page-head h1{margin:0;font-size:20px;}
+.page-head .sub{margin:4px 0 0;}
+.head-actions{display:flex;align-items:center;gap:10px;}
+.head-actions .badge{font-size:12px;}
+@media(max-width:820px){.col-6{grid-column:span 12;}}
 </style>
 </head>
 <body>
@@ -270,49 +242,53 @@ th{color:#94a3b8;font-weight:600;font-size:12px;}
 
 <?php else: ?>
 
-<div class="layout">
-<?php if ($isWebdav): ?>
-<div class="sidebar">
-    <div class="card">
-        <h2>📂 远程 WebDAV 目录</h2>
-        <div class="muted" style="margin-bottom:8px;">勾选目录加入黑名单（同步时跳过）</div>
-        <div class="tree-toolbar">
-            <button class="btn btn-ghost" id="tree_refresh" type="button">🔄 刷新</button>
-            <button class="btn btn-primary" id="tree_save" type="button">💾 保存黑名单</button>
-        </div>
-        <div class="tree-box" id="tree_box">
-            <div class="tree-loading">加载中…</div>
-        </div>
-        <div class="muted" style="margin-top:10px;">
-            黑名单规则：<strong>名称匹配</strong>（任意层级同名，如 <code>.seekMeta</code>）+ <strong>路径匹配</strong>（树勾选的完整路径）
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-<div class="main">
+<div class="dashboard">
 
-<h1>🛠️ Admin 面板</h1>
-<div class="sub">图片浏览器 · 缓存管理 &amp; <?= $isWebdav ? 'WebDAV 同步' : '本地原图模式' ?></div>
+<header class="card page-head">
+    <div>
+        <h1>🛠️ Admin 面板</h1>
+        <div class="sub">图片浏览器 · 缓存管理 &amp; <?= $isWebdav ? 'WebDAV 同步' : '本地原图模式' ?></div>
+    </div>
+    <div class="head-actions">
+        <span class="badge <?= $isWebdav ? 'ok' : 'none' ?>"><?= $isWebdav ? 'WebDAV' : '本地原图' ?></span>
+        <form method="post" style="display:inline">
+            <input type="hidden" name="action" value="logout">
+            <button type="submit" class="btn btn-ghost">退出登录</button>
+        </form>
+    </div>
+</header>
 
 <?php if ($actionMsg): ?>
-<div class="msg <?= $actionOk ? 'ok' : 'err' ?>"><?= h($actionMsg) ?></div>
+<div class="msg <?= $actionOk ? 'ok' : 'err' ?> col-12"><?= h($actionMsg) ?></div>
 <?php endif; ?>
 
-<div class="card" style="max-width:860px;">
+<div class="card col-6">
     <h2>📊 状态总览</h2>
     <div class="stat-grid">
         <div class="stat-box"><div class="num" style="font-size:16px;"><?= $isWebdav ? 'WebDAV' : '本地原图' ?></div><div class="lbl">存储模式</div></div>
         <div class="stat-box"><div class="num"><?= number_format($imageCount) ?></div><div class="lbl">图片总数</div></div>
-        <div class="stat-box"><div class="num"><?= count(array_filter($cacheStats, fn($s) => $s['exists'] && $s['valid'])) ?></div><div class="lbl">有效缓存</div></div>
-        <div class="stat-box"><div class="num"><?= count(array_filter($cacheStats, fn($s) => !$s['exists'])) ?></div><div class="lbl">缺失缓存</div></div>
         <div class="stat-box"><div class="num"><?= PHP_VERSION ?></div><div class="lbl">PHP 版本</div></div>
     </div>
 </div>
 
-<div class="card">
+<div class="card col-6">
+    <h2>⚙️ 缓存操作</h2>
+    <form method="post" style="display:inline" onsubmit="return confirm('确定强制重建目录树？')">
+        <input type="hidden" name="action" value="rebuild_tree">
+        <input type="hidden" name="csrf" value="<?= h($csrfToken) ?>">
+        <button type="submit" class="btn btn-primary">🔄 强制重建目录树</button>
+    </form>
+    <form method="post" style="display:inline" onsubmit="return confirm('确定清空全部缓存？')">
+        <input type="hidden" name="action" value="clear_all">
+        <input type="hidden" name="csrf" value="<?= h($csrfToken) ?>">
+        <button type="submit" class="btn btn-danger">🧹 清空全部</button>
+    </form>
+</div>
+
+<div class="card col-12">
     <h2>🗃️ 缓存状态</h2>
     <table>
-        <tr><th>缓存</th><th>状态</th><th>大小</th><th>生成时间</th><th>更新时间</th></tr>
+        <tr><th>缓存</th><th>状态</th><th>大小</th><th>更新时间</th></tr>
         <?php foreach ($cacheStats as $s): ?>
         <tr>
             <td><strong><?= h($s['file']) ?></strong><br><span class="muted"><?= h($s['desc']) ?></span></td>
@@ -326,43 +302,18 @@ th{color:#94a3b8;font-weight:600;font-size:12px;}
                 <?php endif; ?>
             </td>
             <td><?= $s['exists'] ? fmtSize($s['size']) : '--' ?></td>
-            <td><?= fmtTime($s['mtime'] ?? null) ?></td>
             <td><?= fmtAge($s['age']) ?></td>
         </tr>
         <?php endforeach; ?>
     </table>
     <div class="tip">
         💡 <strong>缓存机制：</strong>浏览器「清除缓存」只清本地存储，服务端缓存默认 30 天 TTL。
-        当你修改/增删了 webp_cache 里的图片后，用下方按钮强制重建对应缓存即可立即生效。
+        当你修改/增删了 webp_cache 里的图片后，用上方「🔄 强制重建目录树」即可立即生效。
     </div>
 </div>
 
-<div class="card">
-    <h2>⚙️ 缓存操作</h2>
-    <form method="post" style="display:inline" onsubmit="return confirm('确定强制重建目录树？')">
-        <input type="hidden" name="action" value="rebuild_tree">
-        <input type="hidden" name="csrf" value="<?= h($csrfToken) ?>">
-        <button type="submit" class="btn btn-primary">🔄 强制重建目录树</button>
-    </form>
-    <form method="post" style="display:inline" onsubmit="return confirm('确定清空图片元数据缓存？')">
-        <input type="hidden" name="action" value="clear_meta">
-        <input type="hidden" name="csrf" value="<?= h($csrfToken) ?>">
-        <button type="submit" class="btn btn-ghost">🗑️ 清空图片元数据缓存</button>
-    </form>
-    <form method="post" style="display:inline" onsubmit="return confirm('确定清空文件名搜索索引？')">
-        <input type="hidden" name="action" value="clear_name">
-        <input type="hidden" name="csrf" value="<?= h($csrfToken) ?>">
-        <button type="submit" class="btn btn-ghost">🗑️ 清空搜索索引</button>
-    </form>
-    <form method="post" style="display:inline" onsubmit="return confirm('确定清空全部缓存？')">
-        <input type="hidden" name="action" value="clear_all">
-        <input type="hidden" name="csrf" value="<?= h($csrfToken) ?>">
-        <button type="submit" class="btn btn-danger">🧹 清空全部</button>
-    </form>
-</div>
-
 <?php if ($isWebdav): ?>
-<div class="card">
+<div class="card col-12">
     <h2>🔄 WebDAV 同步任务</h2>
     <div class="muted" style="margin-bottom:10px;">
         从远程 WebDAV（<code><?= h($env['WEBDAV_BASE_URL'] ?? '(未配置)') ?></code>）拉取图片 → 等比缩放 → 压缩 webp 存入 <code>webp_cache</code>。
@@ -465,7 +416,6 @@ th{color:#94a3b8;font-weight:600;font-size:12px;}
         body.append('blacklist', $('sync_blacklist').value);
         body.append('quality', $('sync_quality').value);
         body.append('max_width', $('sync_max_width').value);
-        if (treeReady) body.append('blacklist_dirs', JSON.stringify([...treeSelected]));
         fetch('sync_webdav.php?action=config', {method: 'POST', body})
             .then(r => r.json()).then(d => {
                 if (d.ok) { setMsg('✅ 配置已保存', true); logLine('配置已保存'); }
@@ -571,177 +521,23 @@ th{color:#94a3b8;font-weight:600;font-size:12px;}
         if (timer) { clearTimeout(timer); timer = null; }
     }
 
-    // ================= 远程目录树（黑名单勾选） =================
-    const treeBox = $('tree_box');
-    const treeSelected = new Set();   // 当前勾选的路径黑名单（待保存）
-    const treeLoaded = new Set();     // 已加载过的目录 path（避免重复请求）
-    let treeBusy = false;
-    let treeReady = false;            // 树的 config 是否已加载完（避免误清空黑名单）
-
-    // 从后端 config 加载已有路径黑名单
-    fetch('sync_webdav.php?action=config').then(r => r.json()).then(d => {
-        if (!d.error && Array.isArray(d.config.blacklist_dirs)) {
-            d.config.blacklist_dirs.forEach(p => treeSelected.add(p));
-        }
-        treeReady = true;
-        loadTreeLevel('', treeBox, true);
-    });
-
-    function esc(s) {
-        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    }
-
-    // 加载某个目录层；container 为 .tree-children 或根 .tree-box
-    function loadTreeLevel(path, container, isRoot) {
-        if (treeBusy) return;
-        treeBusy = true;
-        if (!isRoot) container.innerHTML = '<div class="tree-loading">加载中…</div>';
-        fetch('sync_webdav.php?action=tree&path=' + encodeURIComponent(path))
-            .then(r => r.json()).then(d => {
-                treeBusy = false;
-                if (d.error) { container.innerHTML = '<div class="tree-empty">❌ ' + esc(d.error) + '</div>'; return; }
-                if (isRoot) {
-                    treeLoaded.clear();
-                    container.innerHTML = '';
-                } else {
-                    treeLoaded.add(path);
-                }
-                if (!d.dirs || d.dirs.length === 0) {
-                    container.innerHTML = '<div class="tree-empty">（无子目录）</div>';
-                    return;
-                }
-                d.dirs.forEach(dir => container.appendChild(buildNode(dir)));
-            }).catch(() => {
-                treeBusy = false;
-                container.innerHTML = '<div class="tree-empty">请求失败</div>';
-            });
-    }
-
-    function buildNode(dir) {
-        const node = document.createElement('div');
-        node.className = 'tree-node';
-        const row = document.createElement('div');
-        row.className = 'tree-row';
-        row.title = dir.path;
-
-        const toggle = document.createElement('span');
-        toggle.className = 'tree-toggle';
-        toggle.textContent = '▸';
-
-        const check = document.createElement('input');
-        check.type = 'checkbox';
-        check.className = 'tree-check';
-        if (dir.byName) {
-            // 名称黑名单由文本框全局控制，树里只读展示
-            check.checked = true;
-            check.disabled = true;
-            check.title = '该目录由「名称黑名单」排除（可在同步配置里修改）';
-        } else {
-            check.checked = treeSelected.has(dir.path);
-            check.addEventListener('change', () => {
-                if (check.checked) treeSelected.add(dir.path);
-                else treeSelected.delete(dir.path);
-                icon.textContent = check.checked ? '🚫' : '📁';
-                badge.classList.toggle('show', check.checked);
-            });
-        }
-
-        const icon = document.createElement('span');
-        icon.className = 'tree-icon';
-        icon.textContent = (check.checked || dir.byName) ? '🚫' : '📁';
-
-        const name = document.createElement('span');
-        name.className = 'tree-name';
-        name.textContent = dir.name;
-
-        const badge = document.createElement('span');
-        badge.className = 'tree-badge' + (check.checked || dir.byName ? ' show' : '');
-        badge.textContent = dir.byName ? '名称' : '路径';
-        badge.title = dir.byName ? '按名称匹配（文本框黑名单）' : '按路径匹配（树勾选）';
-
-        const count = document.createElement('span');
-        count.className = 'tree-count';
-        if (dir.file_count > 0) count.textContent = dir.file_count + '图';
-
-        row.appendChild(toggle);
-        row.appendChild(check);
-        row.appendChild(icon);
-        row.appendChild(name);
-        row.appendChild(badge);
-        row.appendChild(count);
-
-        // 懒加载：点击行展开/收起
-        const children = document.createElement('div');
-        children.className = 'tree-children';
-        row.addEventListener('click', (e) => {
-            if (e.target === check) return; // checkbox 单独处理
-            if (node.classList.contains('open')) {
-                node.classList.remove('open');
-                toggle.textContent = '▸';
-                return;
-            }
-            node.classList.add('open');
-            toggle.textContent = '▾';
-            if (!treeLoaded.has(dir.path) && !children.dataset.loaded) {
-                children.dataset.loaded = '1';
-                loadTreeLevel(dir.path, children);
-            }
-        });
-
-        node.appendChild(row);
-        node.appendChild(children);
-        return node;
-    }
-
-    // 刷新：清空重建根
-    $('tree_refresh').addEventListener('click', () => {
-        if (treeBusy) return;
-        treeBox.innerHTML = '<div class="tree-loading">加载中…</div>';
-        treeLoaded.clear();
-        loadTreeLevel('', treeBox, true);
-    });
-
-    // 保存黑名单（独立按钮，也可用右上「保存配置」）
-    $('tree_save').addEventListener('click', () => {
-        if (!treeReady) { setMsg('⚠️ 目录树尚未加载完成，请稍候', false); return; }
-        const body = new URLSearchParams();
-        body.append('whitelist', $('sync_whitelist').value);
-        body.append('blacklist', $('sync_blacklist').value);
-        body.append('quality', $('sync_quality').value);
-        body.append('max_width', $('sync_max_width').value);
-        body.append('blacklist_dirs', JSON.stringify([...treeSelected]));
-        fetch('sync_webdav.php?action=config', {method: 'POST', body})
-            .then(r => r.json()).then(d => {
-                if (d.ok) { setMsg('✅ 黑名单已保存', true); logLine('黑名单已保存：' + treeSelected.size + ' 条路径'); }
-                else setMsg('❌ ' + (d.error || '保存失败'), false);
-            });
-    });
-
 })();
 </script>
 <?php else: ?>
-<div class="card">
+<div class="card col-12">
     <h2>📁 本地原图模式</h2>
     <div class="muted" style="margin-bottom:10px;">
         当前 <code>STORAGE_MODE=local</code>：网站直接展示 <code>webp_cache/</code> 中的原图，不从远程 WebDAV 拉取，也不启用同步任务。
     </div>
     <div class="tip">
-        💡 把原图（png / jpg / jpeg / webp / gif）直接放进 <code>webp_cache/</code> 目录即可，浏览器会直接展示；
+        💡 先在 <code>webp_cache/</code> 下<strong>新建一个子文件夹</strong>，再把原图（png / jpg / jpeg / webp / gif）和 <code>README.md</code> 放进去即可展示（根目录文件不会被列出）；
         增删图片后点上方「🔄 强制重建目录树」立即生效。
         <br>🔹 如需切回 WebDAV 同步模式：在 <code>.env</code> 中设置 <code>STORAGE_MODE=webdav</code>，刷新本页即可。
     </div>
 </div>
 <?php endif; ?>
 
-<div class="card" style="text-align:right;">
-    <form method="post" style="display:inline">
-        <input type="hidden" name="action" value="logout">
-        <button type="submit" class="btn btn-ghost">退出登录</button>
-    </form>
-</div>
-
-</div><!-- /main -->
-</div><!-- /layout -->
+</div><!-- /dashboard -->
 <?php endif; ?>
 </body>
 </html>
