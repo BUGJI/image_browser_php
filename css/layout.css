@@ -201,6 +201,9 @@
 .pic-card img { width: 100%; height: auto; display: block; opacity: 0; transition: opacity var(--dur-slow) var(--ease); }
 .pic-card img.loaded { opacity: 1; }
 
+/* 正方形模式：格子固定为正方形，图片等比缩放裁剪填满 */
+.masonry-viewport.view-grid .pic-card img { height: 100%; object-fit: cover; }
+
 .pic-skeleton {
   position: absolute; inset: 0;
   background: linear-gradient(100deg, var(--bg-tertiary) 30%, var(--hover-bg) 50%, var(--bg-tertiary) 70%);

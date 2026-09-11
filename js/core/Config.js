@@ -26,6 +26,7 @@ export const STORAGE_KEYS = {
   FOLDER_IMAGES_PREFIX: 'folder_images_',
   COLLAPSED_FOLDERS: 'collapsed_folders',
   THEME: 'theme',
+  VIEW_MODE: 'view_mode',
   CACHE_UPDATED_AT: 'cache_updated_at',
 };
 

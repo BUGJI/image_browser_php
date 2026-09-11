@@ -32,17 +32,16 @@
         <div class="main-content">
             <div class="toolbar">
                 <div class="current-path" id="currentPath">/</div>
+                <span id="imageCount" class="image-count"></span>
                 <button class="btn btn-icon theme-toggle" id="themeToggle" data-icon="moon" data-icon-size="16" title="切换亮色/暗色主题"></button>
-                <div class="toolbar-right">
-                    <span id="imageCount" class="image-count"></span>
-                    <input type="range" id="zoomSlider" min="0.5" max="7" step="0.1" value="1" title="缩放">
-                    <div class="search-field">
-                        <span class="search-field-icon" data-icon="search" data-icon-size="14"></span>
-                        <input type="text" id="imageSearch" class="search-box" placeholder="搜索图片">
-                        <button class="search-clear" id="searchClear" data-icon="x" data-icon-size="13" hidden title="清除"></button>
-                    </div>
-                    <button class="btn btn-icon" id="refreshBtn" data-icon="refresh" data-icon-size="16" title="刷新"></button>
+                <button class="btn btn-icon" id="viewToggle" data-icon="masonry" data-icon-size="16" title="视图：瀑布流（点击切换为正方形）"></button>
+                <input type="range" id="zoomSlider" min="0.5" max="7" step="0.1" value="1" title="缩放">
+                <div class="search-field">
+                    <span class="search-field-icon" data-icon="search" data-icon-size="14"></span>
+                    <input type="text" id="imageSearch" class="search-box" placeholder="搜索图片">
+                    <button class="search-clear" id="searchClear" data-icon="x" data-icon-size="13" hidden title="清除"></button>
                 </div>
+                <button class="btn btn-icon" id="refreshBtn" data-icon="refresh" data-icon-size="16" title="刷新"></button>
             </div>
 
             <div class="masonry-scroll" id="masonryScroll">

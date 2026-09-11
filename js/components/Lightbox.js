@@ -43,6 +43,11 @@ export class Lightbox {
     window.addEventListener('mouseup', () => this.onPanEnd());
     this.$img.addEventListener('dblclick', () => this.resetTransform());
 
+    // 非缩放状态：点击图片以外的空白区域返回主界面
+    this.$container.addEventListener('click', (e) => {
+      if (e.target === this.$container && this.scale <= 1) this.close();
+    });
+
     this.$el.addEventListener('click', (e) => { if (e.target === this.$el) this.close(); });
 
     document.addEventListener('keydown', (e) => {
@@ -56,7 +61,7 @@ export class Lightbox {
   async open(idx) {
     const layout = appStore.get('layout');
     const item = layout[idx];
-    if (!item) return;
+    if (!item || !item.img) return; // README 等非图片项不可打开
 
     const seq = ++this.openSeq; // 本次打开序号,用于丢弃过期响应
     appStore.setMultiple({ lightboxActive: true, lightboxIndex: idx, lightboxImage: item.img });
@@ -85,9 +90,10 @@ export class Lightbox {
       if (seq === this.openSeq) this.$loading.style.display = 'none';
     }
 
-    // 预加载相邻
-    if (idx > 0) imageService.preloadOriginal(layout[idx - 1].img.path).catch(() => {});
-    if (idx < layout.length - 1) imageService.preloadOriginal(layout[idx + 1].img.path).catch(() => {});
+    // 预加载相邻（跳过 README 等非图片项）
+    const prev = layout[idx - 1], next = layout[idx + 1];
+    if (prev && prev.img) imageService.preloadOriginal(prev.img.path).catch(() => {});
+    if (next && next.img) imageService.preloadOriginal(next.img.path).catch(() => {});
   }
 
   close() {
@@ -100,7 +106,9 @@ export class Lightbox {
   nav(dir) {
     const layout = appStore.get('layout');
     const cur = appStore.get('lightboxIndex');
-    const next = cur + dir;
+    // 跳过 README 等非图片项，避免停在空位置
+    let next = cur + dir;
+    while (next >= 0 && next < layout.length && !layout[next]?.img) next += dir;
     if (next >= 0 && next < layout.length) this.open(next);
   }
 

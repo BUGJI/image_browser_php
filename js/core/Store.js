@@ -50,6 +50,7 @@ export const appStore = new Store({
   // UI State
   theme: 'dark',
   sidebarOpen: window.innerWidth <= 768,
+  viewMode: 'masonry',
   zoom: 1,
   // Data
   folderTree: [],

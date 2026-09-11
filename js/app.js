@@ -42,6 +42,12 @@ export class App {
     this.grid = new MasonryGrid();
     this.lightbox = new Lightbox();
 
+    // 3.1 恢复视图模式（masonry 瀑布流 / grid 正方形）
+    const viewMode = Storage.get(STORAGE_KEYS.VIEW_MODE) || 'masonry';
+    appStore.set('viewMode', viewMode);
+    this.grid.setViewMode(viewMode);
+    this.updateViewButton(viewMode);
+
     // 4. 绑定全局事件
     this.bindGlobalEvents();
 
@@ -56,6 +62,10 @@ export class App {
   bindGlobalEvents() {
     // 主题切换
     document.getElementById('themeToggle').onclick = () => this.toggleTheme();
+
+    // 视图模式切换
+    document.getElementById('viewToggle').onclick = () => this.toggleViewMode();
+    window.toggleViewMode = () => this.toggleViewMode();
 
     // 侧边栏
     document.getElementById('folderFilter').addEventListener('input', () => this.sidebar.filter());
@@ -295,6 +305,25 @@ export class App {
       this.searchController.abort();
       this.searchController = null;
     }
+  }
+
+  /** 切换视图模式（瀑布流 / 正方形） */
+  toggleViewMode() {
+    const mode = appStore.get('viewMode') === 'grid' ? 'masonry' : 'grid';
+    appStore.set('viewMode', mode);
+    Storage.set(STORAGE_KEYS.VIEW_MODE, mode);
+    this.grid?.setViewMode(mode);
+    this.updateViewButton(mode);
+    this.showToast(mode === 'grid' ? '正方形模式' : '瀑布流模式', 'info');
+  }
+
+  /** 更新视图切换按钮图标与提示 */
+  updateViewButton(mode) {
+    const btn = document.getElementById('viewToggle');
+    if (!btn) return;
+    const isGrid = mode === 'grid';
+    btn.innerHTML = icon(isGrid ? 'grid' : 'masonry', 16);
+    btn.title = isGrid ? '视图：正方形（点击切换为瀑布流）' : '视图：瀑布流（点击切换为正方形）';
   }
 
   /** 主题切换 */

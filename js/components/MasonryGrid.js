@@ -28,7 +28,16 @@ export class MasonryGrid {
     this.readmeDisplay = new ReadmeDisplay();
     this.readmeEl = null;
     this.searchMode = false;
+    this.viewMode = 'masonry'; // 'masonry' 瀑布流 | 'grid' 正方形
     this.bindEvents();
+  }
+
+  /** 切换视图模式：masonry 瀑布流 / grid 正方形（cover 裁剪） */
+  setViewMode(mode) {
+    this.viewMode = mode === 'grid' ? 'grid' : 'masonry';
+    this.$viewport.classList.toggle('view-grid', this.viewMode === 'grid');
+    this.$viewport.classList.toggle('view-masonry', this.viewMode !== 'grid');
+    this.recalc();
   }
 
   bindEvents() {
@@ -61,7 +70,11 @@ export class MasonryGrid {
   }
 
   reload(images) {
+    // 图片集合变化（刷新 / 切换文件夹）：整体重建，保留进入动画
     this.$count.textContent = `${images.length} 张`;
+    this.resetRendered();
+    this.$viewport.innerHTML = '';
+    this.actualHeights.clear();
     this.recalc();
   }
 
@@ -75,9 +88,16 @@ export class MasonryGrid {
     this.recalc();
   }
 
+  /** 移除所有已渲染卡片 */
+  resetRendered() {
+    this.rendered.forEach(el => el.remove());
+    this.rendered.clear();
+  }
+
   /** 显示/隐藏加载状态 */
   setLoading(loading) {
     if (loading) {
+      this.resetRendered();
       this.$viewport.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><div>加载中...</div></div>';
     }
   }
@@ -90,7 +110,7 @@ export class MasonryGrid {
     if (!images.length && !hasReadme) {
       this.layout = [];
       this.pathToItem.clear();
-      this.rendered.clear();
+      this.resetRendered();
       appStore.set('layout', []);
       this.$spacer.style.height = '0px';
       this.$viewport.innerHTML = `<div class="empty-state">${icon('inbox', 28)}<div>空文件夹</div></div>`;
@@ -111,6 +131,7 @@ export class MasonryGrid {
     if (hasReadme) {
       const README_HEIGHT = 200;
       newLayout.push({
+        key: '__readme__',
         index: -1,
         col: 0,
         top: contentTopPadding,
@@ -123,15 +144,20 @@ export class MasonryGrid {
       for (let c = 0; c < cols; c++) colHeights[c] = README_HEIGHT + gap + contentTopPadding;
     }
 
+    const isGrid = this.viewMode === 'grid';
+
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-      const cardH = this.actualHeights.get(img.path) ||
-        (img.width && img.height ? cardW / (img.width / img.height) : cardW * 0.75);
+      // 正方形模式：每个格子固定为宽高相等（图片用 object-fit: cover 等比裁剪填满）
+      const cardH = isGrid ? cardW :
+        (this.actualHeights.get(img.path) ||
+          (img.width && img.height ? cardW / (img.width / img.height) : cardW * 0.75));
 
       let minCol = 0;
       for (let c = 1; c < cols; c++) if (colHeights[c] < colHeights[minCol]) minCol = c;
 
       newLayout.push({
+        key: img.path,
         index: i,
         col: minCol,
         top: colHeights[minCol],
@@ -152,15 +178,8 @@ export class MasonryGrid {
     }
     appStore.set('layout', newLayout);
     this.$spacer.style.height = Math.max(...colHeights, 0) + 'px';
-    this.clear();
+    // 不重建卡片：renderVisible 会按 key 复用现有卡片，仅更新位置，避免缩放时重放进入动画
     this.renderVisible();
-  }
-
-  clear() {
-    // 统一交给 renderVisible 负责定位/插入（含 README），避免重复挂载导致错位或消失
-    this.rendered.forEach(el => el.remove());
-    this.rendered.clear();
-    this.$viewport.innerHTML = '';
   }
 
   renderVisible() {
@@ -171,39 +190,57 @@ export class MasonryGrid {
     const buf = vh * 2;
     const vStart = st - buf, vEnd = st + vh + buf;
 
-    const need = new Set();
-    for (let i = 0; i < this.layout.length; i++) {
-      const it = this.layout[i];
-      if (it.top + it.h >= vStart && it.top <= vEnd) need.add(i);
+    // key -> item（当前布局）
+    const itemByKey = new Map();
+    for (const it of this.layout) itemByKey.set(it.key, it);
+
+    // 可见（含缓冲）需要展示的
+    const need = new Map();
+    for (const it of this.layout) {
+      if (it.top + it.h >= vStart && it.top <= vEnd) need.set(it.key, it);
     }
 
+    // 回收移出较大缓冲区的卡片
     const relBuf = vh * 3;
     const rStart = st - relBuf, rEnd = st + vh + relBuf;
-    const toDel = [];
-    for (const [idx, el] of this.rendered) {
-      const it = this.layout[idx];
-      if (it && (it.top + it.h < rStart || it.top > rEnd)) toDel.push([idx, el]);
+    for (const [key, el] of [...this.rendered]) {
+      const it = itemByKey.get(key);
+      if (!it || it.top + it.h < rStart || it.top > rEnd) {
+        el.remove();
+        this.rendered.delete(key);
+      }
     }
-    toDel.forEach(([idx, el]) => { el.remove(); this.rendered.delete(idx); });
 
+    // 新增或复用卡片（复用只更新几何，不重放动画）
     const frag = document.createDocumentFragment();
-    for (const i of need) {
-      if (!this.rendered.has(i)) {
-        const card = this.createCard(this.layout[i], i);
+    for (const [key, item] of need) {
+      const existing = this.rendered.get(key);
+      if (existing) {
+        this.positionCard(existing, item);
+      } else {
+        const card = this.createCard(item);
+        this.positionCard(card, item);
         frag.appendChild(card);
-        this.rendered.set(i, card);
+        this.rendered.set(key, card);
       }
     }
     if (frag.children.length) this.$viewport.appendChild(frag);
   }
 
-  createCard(item, idx) {
-    const { left, top, w, h, img, isReadme } = item;
-    
+  /** 设置卡片几何（复用卡片时避免重建） */
+  positionCard(el, item) {
+    el.style.left = item.left + 'px';
+    el.style.top = item.top + 'px';
+    el.style.width = item.w + 'px';
+    el.style.height = item.h + 'px';
+  }
+
+  createCard(item) {
+    const { img, isReadme } = item;
+
     // README 卡片
     if (isReadme) {
       const card = this.readmeEl;
-      card.style.cssText = `left:${left}px;top:${top}px;width:${w}px;height:${h}px;`;
       card.className = 'readme-card';
       return card;
     }
@@ -211,10 +248,12 @@ export class MasonryGrid {
     // 普通图片卡片
     const card = document.createElement('div');
     card.className = 'pic-card';
-    card.style.cssText = `left:${left}px;top:${top}px;width:${w}px;height:${h}px;`;
+    card.dataset.key = item.key;
 
     card.onclick = () => {
-      eventBus.emit(EVENTS.LIGHTBOX_OPEN, idx);
+      // 按 key 查当前布局索引（README 会改变索引，不能缓存在闭包里）
+      const idx = appStore.get('layout').findIndex(it => it.key === item.key);
+      if (idx >= 0) eventBus.emit(EVENTS.LIGHTBOX_OPEN, idx);
     };
 
     const skel = document.createElement('div');
@@ -228,9 +267,13 @@ export class MasonryGrid {
       skel.style.display = 'none';
       imgEl.classList.add('loaded');
       const nw = imgEl.naturalWidth, nh = imgEl.naturalHeight;
-      if (nw && nh) {
-        const dh = (nh / nw) * w;
-        if (dh > 0 && Math.abs(dh - h) > 5) this.scheduleHeightUpdate(img.path, dh);
+      if (nw && nh && this.viewMode !== 'grid') {
+        // 用当前布局宽度计算，兼容加载完成前已缩放的情况（正方形模式高度固定，无需修正）
+        const cur = this.pathToItem.get(img.path);
+        const curW = cur ? cur.w : item.w;
+        const curH = cur ? cur.h : item.h;
+        const dh = (nh / nw) * curW;
+        if (dh > 0 && Math.abs(dh - curH) > 5) this.scheduleHeightUpdate(img.path, dh);
       }
     };
     imgEl.onerror = () => { skel.style.display = 'none'; imgEl.classList.add('loaded'); };

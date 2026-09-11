@@ -2,7 +2,11 @@
 
 # PHP 快速图片浏览器
 
-一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。瀑布流虚拟滚动、递归目录树、全局搜索、灯箱预览、本地原图 / WebDAV 双存储模式,开箱即用。
+一个基于 **PHP + 原生 JavaScript** 的高性能 Web 图片浏览器,面向**数万张图片**的大型素材库。瀑布流/正方形虚拟滚动、递归目录树、全局搜索、灯箱预览、本地原图 / WebDAV 双存储模式,开箱即用。
+
+> [!IMPORTANT]
+> **使用前必读:先在 `webp_cache/` 下新建一个独立文件夹,再把图片或 `README.md` 放进去。**
+> 直接丢在 `webp_cache/` 根目录下的图片和 README **不会显示** —— 左侧目录树只列出文件夹,根目录文件不计入任何可浏览的分类。
 
 ---
 
@@ -12,8 +16,9 @@
 - **虚拟化瀑布流布局** —— 仅渲染可视区域图片,轻松应对数万张图片
 - **懒加载 + 骨架屏** —— 缩略图按需加载,加载中显示占位动画
 - **自动高度修正** —— 图片加载完成后自动校正卡片高度,防止布局跳动
+- **双视图模式** —— **瀑布流**(按原始比例) / **正方形**(固定方格,图片 `object-fit: cover` 等比裁剪填满),工具栏一键切换并记忆
 - **可调缩放 (0.5x ~ 7x)** —— 滑块实时调整缩略图大小,布局自动重排
-- **文件夹 README 预览** —— 自动识别并渲染文件夹下的 `README.md/txt`,支持 Markdown 渲染
+- **文件夹 README 预览** —— 自动识别并渲染**子文件夹**下的 `README.md/txt`,支持 Markdown 渲染
 
 ### 📁 智能目录树
 - **递归文件夹树** —— 递归扫描 `webp_cache` 目录,显示层级结构
@@ -28,10 +33,10 @@
 - **结果计数** —— 显示搜索结果数量
 
 ### 🔍 灯箱预览
-- **全屏查看** —— ESC/点击背景/关闭按钮关闭
-- **键盘导航** ←/→ 切换,双击重置缩放
+- **全屏查看** —— ESC/关闭按钮关闭;未缩放时点击图片外的空白区域也可返回主界面
+- **键盘导航** ←/→ 切换(自动跳过 README 等非图片项),双击重置缩放
 - **鼠标滚轮缩放** —— 以鼠标为中心缩放 (0.25x ~ 10x)
-- **拖拽平移** —— 按住鼠标拖动查看大图
+- **拖拽平移** —— 缩放后按住鼠标拖动查看大图
 - **原图加载** —— 点击「原图模式」加载高清原图(webdav 模式经 `api.php` 代理远程,local 模式直接读本地)
 - **图片信息** —— 显示文件名、尺寸、格式、大小、修改时间
 
@@ -57,8 +62,10 @@
 STORAGE_MODE=webdav   # 或 local
 ```
 
-- **local**:把原图(png / jpg / jpeg / webp / gif)放进 `webp_cache/` 即可,改完在 admin 面板点「强制重建目录树」生效;admin 面板会隐藏 WebDAV 同步相关界面。
+- **local**:先在 `webp_cache/` 下**新建一个子文件夹**,再把原图(png / jpg / jpeg / webp / gif)和可选的 `README.md` 放进去;改完在 admin 面板点「强制重建目录树」生效。admin 面板会隐藏 WebDAV 同步相关界面。
 - **webdav**:保持原有行为,使用下方同步任务把远程素材压缩到 `webp_cache`。
+
+> ⚠️ 无论哪种模式,**图片和 README 都必须位于 `webp_cache/` 的子文件夹中**;放在根目录的文件不会被目录树列出、也不会显示。需要多个分类时,建立多个子文件夹即可(支持嵌套)。
 
 ---
 
@@ -147,7 +154,7 @@ js/
 cp .env.example .env
 # 2. 编辑 .env:填入 WebDAV 凭据、ADMIN_TOKEN(强随机口令)
 # 3. 将项目放入 PHP 服务器目录(如 Apache/Nginx/PHP 内置服务器)
-# 4. 确保 webp_cache 目录存在且包含图片(结构见下)
+# 4. 在 webp_cache 下新建子文件夹,并放入图片 / README(结构见下;根目录文件不显示)
 # 5. 启动 PHP 服务
 php -S localhost:8080 -t .
 # 6. 浏览器打开 http://localhost:8080
@@ -155,21 +162,25 @@ php -S localhost:8080 -t .
 ```
 
 ### 目录结构要求
+
 ```
 image_browser/
-├── webp_cache/              # 图片根目录(必须存在)
-│   ├── folder1/
+├── webp_cache/                    # 图片根目录(缺失会自动创建)
+│   ├── 分类A/                     # ← 必须新建子文件夹,图片/README 放这里
 │   │   ├── image1.webp
 │   │   ├── image2.png
-│   │   └── README.md        # 可选:文件夹说明
-│   └── folder2/
-│       └── subfolder/
+│   │   └── README.md              # 可选:该文件夹的说明(md/txt)
+│   └── 分类B/
+│       └── 子分类/                # 支持多层嵌套
 │           └── image3.jpg
 ├── api.php
 ├── index.html
 ├── js/
 └── css/
 ```
+
+> ❌ 错误:`webp_cache/封面.png`、`webp_cache/README.md` —— 根目录文件不会被目录树列出,也不会显示
+> ✅ 正确:先建一个子文件夹(如 `webp_cache/我的素材/`),再把图片与 README 放进去
 
 ## ⌨️ 快捷键
 
@@ -224,6 +235,7 @@ export const CONFIG = {
 | 后端图片元数据缓存 | `.images_meta_cache.json` | 30 天 | 服务器文件 | 避免重复 getimagesize |
 | 折叠状态 | `collapsed_folders` | 永久 | localStorage | Set 序列化(首次默认全折叠) |
 | 主题 | `theme` | 永久 | localStorage | 'light'/'dark' |
+| 视图模式 | `view_mode` | 永久 | localStorage | 'masonry'(瀑布流)/'grid'(正方形) |
 | 缓存更新时间 | `cache_updated_at` | 30 天 | localStorage | 底部「清除缓存」旁显示 |
 | 原图预加载 | - | 会话期 | Memory (Map) | LRU 最大 50 张 |
 
@@ -232,6 +244,9 @@ export const CONFIG = {
 ---
 
 ## 🐛 常见问题
+
+**Q: 放进 `webp_cache` 的图片 / README 不显示?**  
+A: 大概率是放在了**根目录**。请先在 `webp_cache/` 下新建一个**子文件夹**,把图片和 `README.md` 放进去,再到 admin 面板点「强制重建目录树」。根目录下的文件不会被目录树列出。
 
 **Q: 图片不显示/404?**  
 A: 检查 `webp_cache` 目录权限、`api.php?action=thumb` 路径解析、`open_basedir` 限制。
